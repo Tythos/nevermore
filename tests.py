@@ -30,5 +30,14 @@ class BaseTests(unittest.TestCase):
         with nevermore.DataStore("test.xlsx") as ds:
             ds.create(TestModel())
             
+    def test_read(self):
+        """
+        """
+        with nevermore.DataStore("test.xlsx") as ds:
+            records = ds.read(TestModel, {
+                "_id": ("<=", 1),
+                "age": 32
+            })
+            
 if __name__ == "__main__":
     unittest.main()

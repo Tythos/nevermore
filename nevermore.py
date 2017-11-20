@@ -107,6 +107,63 @@ class DataStore(object):
         headers = [col[0].value for col in ws.iter_cols()]
         for k, v in entry.__dict__.items():
             ws.cell(column=headers.index(k)+1, row=row_ndx+1, value=v)
+            
+    def _get(self, ws):
+        """
+        """
+        header = []
+        entries = []
+        for i, row in enumerate(ws.rows):
+            if i is 0:
+                header = [c.value for c in row]
+            else:
+                entry = {}
+                for j, cell in enumerate(row):
+                    entry[header[j]] = cell.value
+                entries.append(entry)
+        return entries
+        
+    def _mask(self, entries, mask):
+        """
+        """
+        return [entry for ndx, entry in enumerate(entries) if mask[ndx]]
+        
+    def _filter(self, entries, field, constraint):
+        """The *constraint* parameter is either a value with an implicit
+           equality constraint or a two-item tuple with 1) an inequality string
+           and b) a value for comparison by way of the inequality. Returns the
+           filtered subset of entries (a list of dictionaries) matching the
+           given constraint.
+        """
+        mask = [True] * len(entries)
+        if type(constraint) is tuple:
+            for ndx, entry in enumerate(entries):
+                ineq = constraint[0]
+                if ineq == '<':
+                    mask[ndx] = entry[field] < constraint[1]
+                elif ineq == '<=':
+                    mask[ndx] = entry[field] <= constraint[1]
+                elif ineq == '==':
+                    mask[ndx] = entry[field] == constraint[1]
+                elif ineq == '>=':
+                    mask[ndx] = entry[field] >= constraint[1]
+                elif ineq == '>':
+                    mask[ndx] = entry[field] > constraint[1]
+                else:
+                    raise Exception('Invalid inequality in constraint')
+        else:
+            for ndx, entry in enumerate(entries):
+                mask[ndx] = entry[field] == constraint
+        entries = self._mask(entries, mask)
+        return entries
+        
+    def _deserialize(self, Cls, entry):
+        """
+        """
+        obj = Cls()
+        for k, v in entry.items():
+            setattr(obj, k, v)
+        return obj
         
     def create(self, entry):
         """Upon creation of an entry, new metadata is attached. An error is
@@ -125,10 +182,15 @@ class DataStore(object):
         self._write(ws, entry, row_ndx)
         return entry
         
-    def read(self, filters):
+    def read(self, Cls, filters={}):
         """
         """
-        pass
+        table = self._getTableName(Cls)
+        ws = self.wb.get_sheet_by_name(table)
+        entries = self._get(ws)
+        for k, v in filters.items():
+            entries = self._filter(entries, k, v)
+        return [self._deserialize(Cls, entry) for entry in entries]
         
     def update(self, entry):
         """
